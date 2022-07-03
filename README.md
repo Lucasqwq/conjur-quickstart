@@ -1,154 +1,587 @@
-# conjur-test
+# conjur-quickstart
+
+This repository guides you through a sample installation of Conjur Open Source
+using Docker Compose.
+
+- [Certification level](#certification-level)
+- [Requirements](#requirements)
+- [Usage instructions](#usage-instructions)
+  * [Using this quick start with Conjur Open Source](#using-this-quick-start-with-conjur-open-source)
+  * [Step by step guide](#step-by-step-guide)
+    + [Set up a Conjur Open Source environment](#set-up-a-conjur-open-source-environment)
+    + [Define policy](#define-policy)
+    + [Store a secret](#store-a-secret)
+    + [Run the demo app](#run-the-demo-app)
+  * [Next steps](#next-steps)
+  * [Explore the Conjur database](#explore-the-conjur-database)
+  * [Configuring Conjur with predefined admin password](#configuring-conjur-with-predefined-admin-password)
+  * [Using persistent Conjur configuration](#using-persistent-conjur-configuration)
+    + [Set up a Conjur Open Source environment with persistence](#set-up-a-conjur-open-source-environment-with-persistence)
+    + [Restarting the Conjur Open Source environment using persistence](#restarting-the-conjur-open-source-environment-using-persistence)
+    + [Delete the Conjur data directory when done](#delete-the-conjur-data-directory-when-done)
+  * [Adding or Modifying Container Environment Variables](#adding-or-modifying-container-environment-variables)
+  * [Troubleshooting](#troubleshooting)
+    + [`Failed to open TCP connection` error for Conjur login](#failed-to-open-tcp-connection-error-for-conjur-login)
+- [Contributing](#contributing)
+
+<small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
+
+## Certification level
+
+![](https://img.shields.io/badge/Certification%20Level-Community-28A745?link=https://github.com/cyberark/community/blob/master/Conjur/conventions/certification-levels.md)
+
+This repo is a **Community** level project. It's a community contributed project
+that **is not reviewed or supported by CyberArk**. For more detailed information
+on our certification levels, see [our community guidelines](https://github.com/cyberark/community/blob/master/Conjur/conventions/certification-levels.md#community).
+
+## Requirements
+
+To follow this quick start guide, you will need to install
+[Docker Desktop](https://docs.docker.com/desktop/).
+
+You will also need to [clone this repository](https://docs.github.com/en/enterprise/2.13/user/articles/cloning-a-repository)
+to your working directory:
+```
+git clone https://github.com/cyberark/conjur-quickstart.git
+```
+
+## Usage instructions
+
+### Using this quick start with Conjur Open Source
+
+We **strongly** recommend choosing the version of this project to use from the
+latest [Conjur OSS suite release](https://docs.conjur.org/Latest/en/Content/Overview/Conjur-OSS-Suite-Overview.html).
+Conjur maintainers perform additional testing on the suite release versions to
+ensure compatibility. When possible, upgrade your Conjur version to match the
+[latest suite release](https://docs.conjur.org/Latest/en/Content/ReleaseNotes/ConjurOSS-suite-RN.htm);
+when using integrations, choose the latest suite release that matches your Conjur
+version. For any questions, please contact us on [Discourse](https://discuss.cyberarkcommons.org/c/conjur/5).
+
+### Step by step guide
+
+In the sections below, we'll walk through standing this environment up step by
+step. Alternatively, you can follow the instructions by visiting the web
+tutorial: https://www.conjur.org/get-started/quick-start/oss-environment/.
+
+#### Set up a Conjur Open Source environment
+
+In this unit you will learn how to install Conjur OpenSource using Docker.
+
+At the end of this section:
+You will have a working Conjur Open Source environment with a Conjur account and an
+admin user.
+
+1. Pull the Docker images
+
+   Open a terminal session and browse to `conjur-quickstart`. Pull the Docker
+   images defined in `docker-compose.yml`:
+   ```
+   docker-compose pull
+   ```
+
+   **Verification**
+   When the required images are successfully pulled, the terminal returns the
+   following:
+   ```
+   Pulling openssl ... done
+   Pulling bot_app ... done
+   Pulling database ... done
+   Pulling conjur ... done
+   Pulling proxy ... done
+   Pulling client ... done
+   ```
+
+1. Generate the master key
+
+   The master data key will be used later to encrypt the database.
+   In the working directory, generate the key and store it to a file:
+
+   _* **Tip**: Although not mandatory, we prefer to store sensitive data to a
+   file and not to display it directly on console screen._
+   ```
+   docker-compose run --no-deps --rm conjur data-key generate > data_key
+   ```
+
+   The data key is generated in the working directory and is stored in a file called data_key.
+
+   **Verification**
+   When the key is generated, the terminal returns the following:
+   ```
+   Creating network "conjur-quickstart_default" with the default driver
+   ```
+
+1. Load master key as an environment variable
+
+   Load `data_key` file content (the master data key) as an environment variable:
+   ```
+   export CONJUR_DATA_KEY="$(< data_key)"
+   ```
+
+1. Start the Conjur Open Source environment
+
+   Start the Conjur Open Source environment:
+   ```
+   docker-compose up -d
+   ```
+
+   When Conjur Open Source starts, the terminal returns the following:
+   ```
+   Creating postgres_database ... done
+   Creating bot_app ... done
+   Creating openssl ... done
+   Creating conjur_server ... done
+   Creating nginx_proxy ... done
+   Creating conjur_client ... done
+   ```
+
+   **Verification**
+   Run the following command to see a list of running containers:
+   ```
+   docker ps -a
+   ```
+
+1. Create an admin account
+
+   Create a Conjur account and initialize the built-in admin user.
+   ```
+   docker-compose exec conjur conjurctl account create myConjurAccount > admin_data
+   ```
+
+   An account named myConjurAccount is created and the admin user is initialized,
+   following keys are created and stored at admin_data file:
+   - admin user API key. Later on, we will use this key to log in to Conjur.
+   - `myConjurAccount` Conjur account public key.
+
+1. Connect the Conjur client to the Conjur server
+
+   This is a one-time action. For the duration of the container’s life or until
+   additional initcommand is issued, the Conjur client and the Conjur server
+   remain connected.
+
+   Use the account name that you created in step 5:
+   ```
+   docker-compose exec client conjur init -u conjur -a myConjurAccount
+   ```
+
+   **Verification**
+   The terminal returns the following output:
+   ```
+   Wrote configuration to /root/.conjurrc
+   ```
+
+#### Define policy
+
+In this unit you will learn how to load your first policy.
+Formatted in YAML, policy defines Conjur entities and the relationships between
+them.  An entity can be a policy, a host, a user, a layer, a group, or a variable.
+
+A sample application policy named BotApp.yml is provided in the client container
+under policy directory.
+
+At the end of this section:
+As a privileged user, you will load a policy that defines a human user, a non-human
+user that represents your application, and a variable.
+
+1. Log in to Conjur as admin
+
+   Log in to Conjur as admin. When prompted for a password, insert the API key
+   stored in the `admin_data` file:
+   ```
+   docker-compose exec client conjur authn login -u admin
+   ```
+
+   **Verification**
+   When you successfully log in, the terminal returns:
+   ```
+   Logged in
+   ```
+
+1. Load the sample policy
 
-*sudo apt-get install cpu-checker
+   Load the provided sample policy into Conjur built-in `root` policy to create
+   the resources for the BotApp:
+   ```
+   docker-compose exec client conjur policy load root policy/BotApp.yml > my_app_data
+   ```
+
+   Conjur generates the following API keys and stores them in a file, my_app_data:
+   - An API key for Dave, the human user. This key is used to authenticate user
+     Dave to Conjur.
+   - An API key for BotApp, the non-human identity. This key is used to
+     authenticate BotApp application to Conjur.
 
-*kvm-ok
+   Those API keys is correlated with the number of Users & Hosts defined in a policy.
 
-*sudo usermod -aG kvm $USER #把kvm功能加入user
+   **Verification**
+   The terminal returns:
+   ```
+   Loaded policy 'root'
+   ```
 
-*groups
+1. Log out of Conjur
 
-*exit
+   Log out of Conjur:
+   ```
+   docker-compose exec client conjur authn logout
+   ```
 
-*sudo shutdown -r +1(重開)
+   **Verification**
+   When you successfully log out, the terminal returns:
+   ```
+   Logged out
+   ```
 
-*sudo apt install gnome-terminal
+#### Store a secret
 
-*sudo apt-get update
+In this unit you will learn how to store your first secret in Conjur.
 
-*sudo apt-get install \
-    ca-certificates \
-    curl \
-    gnupg \
-    lsb-release
+1. Log in as Dave
 
-*sudo mkdir -p /etc/apt/keyrings
+   Log in as Dave, the human user. When prompted for a password, copy and paste
+   Dave’s API key stored in the `my_app_data` file:
+   ```
+   docker-compose exec client conjur authn login -u Dave@BotApp
+   ```
 
-*curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+   **Verification**
+   To verify that you logged in successfully, run:
+   ```
+   docker-compose exec client conjur authn whoami
+   ```
 
-*echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+   The terminal returns:
+   ```
+   {"account":"myConjurAccount","username":"Dave@BotApp"}
+   ```
 
-*sudo apt-get update
- 
-*sudo apt-get install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+1. Generate a secret
 
-*sudo docker run hello-world
+   Generate a value for your application’s secret:
+   ```
+   secretVal=$(openssl rand -hex 12 | tr -d '\r\n')
+   ```
 
-*sudo apt-get update
+   This generates a 12-hex-character value.
 
-*sudo apt-get install ./docker-desktop-<version>-<arch>.deb
+1. Store the secret
 
-*systemctl --user start docker-desktop ###不可sudo,僅可使用當期使用者
- 
-*docker compose version
----------------------------------------------------quickstart------------------------------------------------------------------------------------
-虛擬機重啟的話 container要全關掉再重新創建
+   Store the generated value in Conjur:
+   ```
+   docker-compose exec client conjur variable values add BotApp/secretVar ${secretVal}
+   ```
 
-*docker-compose down
+   A policy predefined variable named `BotApp/secretVar` is set with a random
+   generated secret.
 
-*docker-compose up -d
+   **Verification**
+   The terminal returns a message:
+   ```
+   Value added.
+   ```
 
+#### Run the demo app
 
+In this unit you will learn how to program an application to fetch a secret from
+Conjur using the REST API.
 
-取得container的CLI
-*docker-compose exec client
+At the end of this section:
+You will know how to leverage Conjur’s ability to store your application’s secrets
+securely.
 
+1. Start a bash session
 
+   Enter the BotApp container.
+   ```
+   docker exec -it bot_app bash
+   ```
 
+1. Generate a Conjur token
 
-重新創造一個admin的key
+   Generate a Conjur token to the conjur_token file, using the BotApp API key:
+   ```
+   curl -d "<BotApp API Key>" -k https://proxy/authn/myConjurAccount/host%2FBotApp%2FmyDemoApp/authenticate > /tmp/conjur_token
+   ```
 
-*docker-compose exec conjur conjurctl account create myConjurAccount > admin_data
+   The Conjur token is stored in the conjur_token file.
 
+1. Fetch the secret
 
+   Run program to fetch the secret:
+   ```
+   /tmp/program.sh
+   ```
 
+   The secret is displayed.
 
-再連接到conjur client
+   TIP: If the secret is not displayed, try generating the token again.  You have eight minutes between generating the conjur token and fetching the secret with BotApp.
 
-*docker-compose exec client conjur init -u conjur -a myConjurAccount
+**Congratulations! You are ready to secure your own apps with Conjur.**
 
+### Next steps
 
+Now that you've got a local Conjur instance running, what can you do with it?
 
+Try some of our [tutorials](https://www.conjur.org/get-started/tutorials/) on
+Conjur.org.
 
-這樣就可以以admin登入
+### Explore the Conjur database
 
-*docker-compose exec client conjur authn login -u admin
+This section is about exploring the database. The admin panel from pgAdmin can be used to
+discover and explore the database schema, stored procedures and triggers that constitute a
+significant part of the inner working of Conjur. It offers a glimpse into the data model
+of Conjur.
 
+This section should follow only after completion of the [Store a secret](#store-a-secret)
+section. There's more insight to be gleamed from the database when it has become reasonably populated
+with some representative data i.e. roles, identities, permissions etc.
 
+As part of [Setting up a Conjur Open Source environment](#set-up-a-conjur-open-source-environment) the `pgadmin`
+service is spun up. It will be accessible on your local machine at `http://localhost:8081`.
 
+To explore the database
+1. Visit `http://localhost:8081`
+2. Login with email "user@domain.com" and password "SuperSecret"
+3. Add a new server. Name it "Conjur DB". Set the connection details. Host is "database", Port is "5432", Database is "postgres", Username is "postgres", and there is no password. Note that `pgamdin` is running inside the `docker-compose` network, it is for this reason that the Host of "database" is resolvable.
+4. Dig in as shown below!
 
-就可以load policy 記得把要寫入的policy.yml檔案 丟進conf/policy
+![image](https://user-images.githubusercontent.com/8653164/115864622-03da7a00-a42f-11eb-974f-dc2cb034ca09.png)
 
-*docker-compose exec client conjur policy load --replace root policy/conjur.yml > my_app_data_2
+### Configuring Conjur with predefined admin password
 
-(version 會改變)
+The following command will allow you to specify the admin user's password:
+```
+docker-compose exec conjur bash -c 'echo -n "MySecretP@SS1" | conjurctl account create --password-from-stdin --name  myConjurAccount'
+```
+The password must be provided via STDIN in any manner you prefer and must meet
+the following complexity rules:
+- Between 12 and 128 characters
+- 2 uppercase letters
+- 2 lowercase letters
+- 1 special character
+- 1 digit
 
+*Note: This feature is available in Conjur v1.11.5+*
 
+### Using persistent Conjur configuration
 
+With small variations to the steps outlined above, it is possible to set
+up a Conjur Open Source environment that retains Conjur configuration or state
+across Docker container restarts. Using the steps outlined below, a
+Conjur Open Source environment can be set up that uses a local directory on
+the host to persist Conjur configuration across container restarts.
 
+#### Set up a Conjur Open Source environment with persistence
 
+1. If you are already running the Conjur Open Source quickstart environment without
+   persistence, bring down the associated containers:
 
-—--------------------------------------------------do it myself above---------------------------------------------------
+   ```
+   docker-compose down
+   ```
 
+1. Create a directory for storing persistent state. For example:
 
+   ```
+   mkdir temp-db-data
+   ```
 
+   _**NOTE: The permissions on this directory will automatically be changed
+   to 700 by docker-compose when the directory gets host-mounted by the
+   Conjur container.**_
 
+1. Modify `docker-compose.yml` in this repository to support persistent
+   storage of Conjur state. Add the following line to the bottom of the
+   `database` service configuration, replacing `<PATH-TO-CONJUR-DATA-DIRECTORY>`
+   with the path to the directory created in the previous step:
 
+   ```
+       volumes:
+         - <PATH-TO-CONJUR-DATA-DIRECTORY>:/var/lib/postgresql/data
+   ```
 
-*egrep "vmx|svm" /proc/cpuinfo
+   For example:
 
-*sudo apt-get install cpu-checker
+   ```
+       volumes:
+         - /home/myusername/conjur-quickstart/temp-db-data:/var/lib/postgresql/data
+   ```
 
-*kvm-ok
+1. Start the Conjur Open Source environment using persistence:
 
-*sudo apt-get install qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils virtinst virt-manager
+   - If you had previously been running the Conjur Open Source environment,
+     follow the steps outlined above starting with Step 4 of the
+     [Set up a Conjur Open Source environment](#set-up-a-conjur-open-source-environment)
+     section above.
+   - Otherwise, follow the steps starting with Step 1 of the
+     [Set up a Conjur Open Source environment](#set-up-a-conjur-open-source-environment)
+     section above.
 
-*sudo systemctl is-active libvirtd
+#### Restarting the Conjur Open Source environment using persistence
 
-*whoami
+Once you have set up the Conjur Open Source environment to support persistent Conjur
+state, you can restart your environment as follows:
 
-*sudo usermod -aG libvirt $USER
+1. Bring the containers down:
 
-*sudo usermod -aG kvm $USER #把kvm功能加入user
+   ```
+   docker-compose down
+   ```
 
-*groups
+   _**NOTE: You must use the `docker-compose down` command here rather than
+   the `docker-compose stop` in order to avoid having stale, ephemeral
+   connection state in the Conjur container. If you use the `docker-compose
+   stop` command here instead, you may see errors as described in the
+   [`Failed to open TCP connection` error for Conjur login](#failed-to-open-tcp-connection-error-for-conjur-login)
+   section below.**_
 
-*exit
+1. Bring the containers back up:
 
-*sudo shutdown -r +1
+   ```
+   docker-compose up -d
+   ```
 
-*sudo apt install gnome-terminal
+1. Reconnect the Conjur client to the Conjur server. Use the account name
+   that you created in the
+   [Create an admin account](#create-an-admin-account) section above. For
+   example:
 
-*sudo apt-get update
+   ```
+   docker-compose exec client conjur init -u conjur -a myConjurAccount
+   ```
 
-*sudo apt-get install \
-    ca-certificates \
-    curl \
-    gnupg \
-    lsb-release
- 
-*sudo mkdir -p /etc/apt/keyrings
+1. Log in again to Conjur as admin. When prompted for a password, insert the
+   API key stored in the `admin_data` file:
 
-*curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+   ```
+   docker-compose exec client conjur authn login -u admin
+   ```
 
-*echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+   **Verification**
+   When you successfully log in, the terminal returns:
+   ```
+   Logged in
+   ```
 
-*sudo apt-get update
- 
-*sudo apt-get install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+#### Delete the Conjur data directory when done
 
-*apt-cache madison docker-ce
+For added security, remember to delete the data directory that you created
+in Step 1 of the
+[Set up a Conjur Open Source environment with persistence](#set-up-a-conjur-open-source-environment-with-persistence)
+section above.
 
-*sudo docker run hello-world
+### Adding or Modifying Container Environment Variables
 
-*sudo apt-get update
+This section describes the process of either adding or modifying environment variables for
+a `docker-compose` service. The process recreates a service with the desired changes, while
+the rest of the system continues running. Note that for a stateful service, there should be a
+[persistence mechanism](#using-persistent-conjur-configuration) in place (e.g. volume mounts),
+otherwise data will be lost when the container is recreated.
 
-*sudo apt-get install ./docker-desktop-<version>-<arch>.deb
+The example below will add an environment variable `CONJUR_LOG_LEVEL=debug` to the `conjur`
+service container.
 
-*systemctl --user start docker-desktop ###不可sudo,僅可使用當期使用者
- 
-*docker compose version
+1. Add or modify environment variables in `docker-compose.yml`
+
+   `docker-compose.yml` is used to define the Conjur Open Source system. Additions and modifications to
+   environment variables are made in the `environment` configuration of the desired service,
+   and are of the form:
+
+   ```
+   version: '3'
+   services:
+     ...
+     conjur:
+       ...
+       environment:
+         CONJUR_LOG_LEVEL: debug
+   ```
+
+1. Recreate the container
+
+   ```
+   docker-compose up -d --no-deps conjur
+   ```
+
+   The new container now contains the updated configuration defined in `docker-compose.yml`.
+
+1. Verify that the desired environment variables are now defined in the container
+
+   Run the following:
+
+   ```
+   docker-compose exec conjur printenv CONJUR_LOG_LEVEL
+   ```
+
+   If the environment variable was correctly assigned in the container, the terminal returns
+   the value of the variable:
+
+   ```
+   debug
+   ```
+
+## Troubleshooting
+
+### `Failed to open TCP connection` error for Conjur login
+
+If you are
+[using persistent Conjur configuration](#using-persistent-conjur-configuration),
+and you see the following error when trying to log into Conjur:
+
+```
+error: Failed to open TCP connection to conjur:80 (Connection refused - connect(2) for "conjur" port 80)
+```
+
+Then try the following:
+
+1. Run the following command:
+
+   ```
+   docker-compose logs conjur | grep "already running"
+   ```
+
+1. If the command in Step 1 produces the following line:
+
+   ```
+   A server is already running. Check /opt/conjur-server/tmp/pids/server.pid.
+   ```
+
+   then it may be that the Conjur container was stopped (e.g.
+   `docker-compose stop conjur`) and restarted
+   (`docker-compose up -d conjur`)
+   without being brought fully down (e.g. with `docker-compose down conjur`),
+   leaving the container with stale connection state.
+
+   To recover from this, run:
+
+   ```
+   docker-compose down conjur
+   docker-compose up -d conjur
+   ```
+
+   And log in again, e.g.:
+
+   ```
+   docker-compose exec client conjur authn login -u admin
+   ```
+
+1. If "A server is already running" does not show in the Conjur container
+   logs, or Step 2 above is unsuccessful, then try restarting all containers:
+
+   ```
+   docker-compose down
+   docker-compose up -d
+   ```
+
+   and try logging in again, e.g.:
+
+   ```
+   docker-compose exec client conjur authn login -u admin
+   ```
+
+## Contributing
+
+We welcome contributions of all kinds to this repository. For instructions on how
+to get started and descriptions of our development workflows, please see our
+[contributing guide][contrib].
+
+[contrib]: CONTRIBUTING.md
