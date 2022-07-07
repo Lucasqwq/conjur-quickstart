@@ -1,7 +1,12 @@
 - !layer
 
 - !host frontend-01
+- !host frontend-02
+- !user Lucas
 
 - !grant
   role: !layer
-  member: !host frontend-01
+  member:
+  - !host frontend-01
+  - !host frontend-02
+  - !user Lucas

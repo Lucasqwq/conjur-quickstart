@@ -1,0 +1,24 @@
+Loaded policy 'frontend'
+{
+  "created_roles": {
+    "myConjurAccount:host:frontend/frontend-01": {
+      "id": "myConjurAccount:host:frontend/frontend-01",
+      "api_key": "3mcx5wt1m7g5182z1t39j2c5kv029mbxg436bj9bp3k3dfhe2888f90"
+    },
+    "myConjurAccount:user:Lucas@frontend": {
+      "id": "myConjurAccount:user:Lucas@frontend",
+      "api_key": "dak1k31nc0gvd3251vx231vb5x91dyhk96nt8yza3wkc9a2z22jse"
+    }
+  },
+  "version": 1
+}
+Loaded policy 'frontend'
+{
+  "created_roles": {
+    "myConjurAccount:host:frontend/frontend-02": {
+      "id": "myConjurAccount:host:frontend/frontend-02",
+      "api_key": "3wq1khq2yv73qw3f0x98920r9csx12wqxq01tqbzatepggpx3rqw07k"
+    }
+  },
+  "version": 2
+}
